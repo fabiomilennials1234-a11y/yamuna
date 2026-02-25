@@ -1,7 +1,7 @@
 "use client"
 
-import { type Icon } from "lucide-react"
-
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -19,6 +19,10 @@ export function NavMain({
     icon?: any
   }[]
 }) {
+  // Preserva os parâmetros de data ao navegar entre abas
+  const searchParams = useSearchParams();
+  const params = searchParams.toString();
+
   return (
     <SidebarGroup>
       <SidebarGroupContent>
@@ -26,10 +30,10 @@ export function NavMain({
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild tooltip={item.title}>
-                <a href={item.url}>
+                <Link href={params ? `${item.url}?${params}` : item.url}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
-                </a>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

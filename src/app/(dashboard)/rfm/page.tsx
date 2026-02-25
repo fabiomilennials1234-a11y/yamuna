@@ -1,12 +1,28 @@
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { fetchRFMData } from "@/app/rfm-actions";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { parseISO } from "date-fns";
 
-export const revalidate = 3600; // Revalida a cada 1 hora (dados históricos estáveis)
+export const dynamic = 'force-dynamic';
 
+interface Props {
+    searchParams: Promise<{ start?: string; end?: string }>;
+}
 
-export default async function RFMPage() {
-    const rfmData = await fetchRFMData(6);
+export default async function RFMPage(props: Props) {
+    const searchParams = await props.searchParams;
+
+    // Calcula o período de análise com base no filtro de data selecionado
+    let months = 6; // padrão: 6 meses
+    if (searchParams.start && searchParams.end) {
+        const start = parseISO(searchParams.start);
+        const end = parseISO(searchParams.end);
+        const diffDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        // Converte para meses, mínimo 1 mês, máximo 12 meses
+        months = Math.max(1, Math.min(12, Math.round(diffDays / 30)));
+    }
+
+    const rfmData = await fetchRFMData(months);
 
     // Get segment colors
     const getScoreColor = (score: number) => {
@@ -116,7 +132,7 @@ export default async function RFMPage() {
                     <div className="p-6 border-b border-white/5 bg-slate-900/20 relative z-10 flex justify-between items-center">
                         <h3 className="text-lg font-bold text-white flex items-center gap-2">
                             Clientes RFM
-                            <span className="text-xs font-normal text-slate-400 bg-white/5 px-2 py-0.5 rounded ml-2">Últimos 12 meses</span>
+                            <span className="text-xs font-normal text-slate-400 bg-white/5 px-2 py-0.5 rounded ml-2">Últimos {months} {months === 1 ? 'mês' : 'meses'}</span>
                         </h3>
                     </div>
 
