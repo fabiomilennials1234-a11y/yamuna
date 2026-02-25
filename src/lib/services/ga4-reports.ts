@@ -291,6 +291,34 @@ export async function getGA4SourceMedium(startDate: string, endDate: string) {
 }
 
 /**
+ * Fetch total Google Ads cost (advertiserAdCost) from GA4.
+ * Returns the sum across all campaigns for the period.
+ * NOTE: advertiserAdCost in GA4 aggregates costs from ALL linked ad platforms.
+ * Use this value as "Google Ads cost" only when Meta is NOT imported into GA4.
+ */
+export async function getGA4AdCost(startDate: string, endDate: string): Promise<number> {
+    const analyticsData = getAnalyticsClient();
+    if (!analyticsData) return 0;
+
+    const safeEndDate = getSafeEndDate(endDate);
+    try {
+        const report = await analyticsData.properties.runReport({
+            property: `properties/${GA4_PROPERTY_ID}`,
+            requestBody: {
+                dateRanges: [{ startDate, endDate: safeEndDate }],
+                dimensions: [{ name: "campaignName" }],
+                metrics: [{ name: "advertiserAdCost" }],
+            },
+        });
+        return report.data.rows?.reduce((acc, row) => {
+            return acc + parseFloat(row.metricValues?.[0]?.value || "0");
+        }, 0) ?? 0;
+    } catch {
+        return 0;
+    }
+}
+
+/**
  * Fetch Google Ads Campaign Data via GA4
  * Filters for source=google and medium=cpc
  */

@@ -57,9 +57,11 @@ export async function DashboardKPIs({ dataPromise, startDate = "30daysAgo", endD
                     <IconCurrencyDollar className="text-muted-foreground w-5 h-5" />
                     <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Investimento & Eficiência</h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 @container/main">
-                    <KPICard label="Investimento" value={data.kpis.investment} prefix="R$ " delay={1} />
-                    <KPICard label="% Custo" value={data.kpis.costPercentage} suffix="%" format="decimal" delay={2} invertTrend />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 @container/main">
+                    <KPICard label="Meta Ads" value={data.kpis.metaAdsCost ?? 0} prefix="R$ " delay={1} />
+                    <KPICard label="Google Ads" value={data.kpis.googleAdsCost ?? 0} prefix="R$ " delay={2} />
+                    <KPICard label="Total Investido" value={data.kpis.investment} prefix="R$ " delay={3} />
+                    <KPICard label="% Custo" value={data.kpis.costPercentage} suffix="%" format="decimal" delay={4} invertTrend />
                 </div>
             </section>
 

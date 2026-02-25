@@ -1,10 +1,10 @@
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
-import { DollarSign, MousePointer2, ShoppingBag, Users } from "lucide-react";
+import { DollarSign, MousePointer2, ShoppingBag, TrendingUp, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getGA4GoogleAdsCampaigns } from "@/lib/services/ga4-reports";
-import { format, subDays, parseISO } from "date-fns";
+import { getGA4GoogleAdsCampaigns, getGA4AdCost } from "@/lib/services/ga4-reports";
+import { format, subDays } from "date-fns";
 
-export const revalidate = 300; // Revalida a cada 5 minutos
+export const dynamic = 'force-dynamic';
 
 interface Props {
     searchParams: Promise<{ start?: string; end?: string }>;
@@ -15,7 +15,6 @@ export default async function GoogleAdsPage(props: Props) {
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 
-    // Date parsing logic (same as main dashboard)
     let startIso = startDate;
     let endIso = endDate;
 
@@ -26,15 +25,18 @@ export default async function GoogleAdsPage(props: Props) {
         endIso = format(new Date(), "yyyy-MM-dd");
     }
 
-    // Fetch data
-    const data = await getGA4GoogleAdsCampaigns(startIso, endIso);
+    // Fetch campaigns + ad cost in parallel
+    const [data, googleAdsCost] = await Promise.all([
+        getGA4GoogleAdsCampaigns(startIso, endIso),
+        getGA4AdCost(startIso, endIso),
+    ]);
 
     const totals = data?.totals || { sessions: 0, purchases: 0, revenue: 0 };
     const campaigns = data?.campaigns || [];
 
-    // Calculate derived metrics
     const conversionRate = totals.sessions > 0 ? (totals.purchases / totals.sessions) * 100 : 0;
     const avgTicket = totals.purchases > 0 ? totals.revenue / totals.purchases : 0;
+    const roas = googleAdsCost > 0 ? totals.revenue / googleAdsCost : 0;
 
     return (
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
@@ -46,25 +48,53 @@ export default async function GoogleAdsPage(props: Props) {
             </div>
             <main className="space-y-8 max-w-[1600px] mx-auto relative w-full">
 
-                {/* Intro / Note */}
+                {/* Note about data source */}
                 <Card className="bg-muted/50">
-                    <div className="p-6 flex items-center gap-4">
-                        <div className="p-3 bg-primary/10 rounded-full border border-primary/20">
-                            <Users className="text-primary w-5 h-5" />
+                    <div className="p-6 flex items-start gap-4">
+                        <div className="p-3 bg-amber-500/10 rounded-full border border-amber-500/20 mt-0.5">
+                            <AlertCircle className="text-amber-400 w-5 h-5" />
                         </div>
                         <div>
                             <p className="text-sm font-medium">
-                                Mostrando dados de tráfego <strong>Pago do Google</strong> capturados pelo Google Analytics 4.
+                                Custo via <strong>GA4 <code className="text-xs bg-muted px-1 py-0.5 rounded">advertiserAdCost</code></strong> — pode incluir outros canais importados para o GA4.
                             </p>
                             <p className="text-muted-foreground text-xs mt-0.5">
-                                Métricas de custo (CPC, ROAS) requerem vínculo direto com o Google Ads e importação de custo no GA4.
+                                Se o Meta Ads também importa custo para este GA4, o valor aparecerá somado aqui. Confira no Google Ads Manager para o custo exato.
                             </p>
                         </div>
                     </div>
                 </Card>
 
                 {/* KPI Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Google Ads Cost */}
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Investimento Google</CardTitle>
+                            <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-yellow-400">
+                                R$ {googleAdsCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Custo via GA4 no período</p>
+                        </CardContent>
+                    </Card>
+
+                    {/* ROAS */}
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">ROAS Google</CardTitle>
+                            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">
+                                {roas > 0 ? `${roas.toFixed(2)}x` : "—"}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Receita / Investimento</p>
+                        </CardContent>
+                    </Card>
+
                     {/* Sessions */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -88,37 +118,10 @@ export default async function GoogleAdsPage(props: Props) {
                             <p className="text-xs text-muted-foreground">Faturamento atribuído</p>
                         </CardContent>
                     </Card>
-
-                    {/* Purchases */}
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Conversões</CardTitle>
-                            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{totals.purchases}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Taxa de Conv.: <span className="text-primary">{conversionRate.toFixed(2)}%</span>
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    {/* Avg Ticket */}
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Ticket Médio Ads</CardTitle>
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">R$ {avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                            <p className="text-xs text-muted-foreground">Por conversão</p>
-                        </CardContent>
-                    </Card>
                 </div>
 
                 {/* Campaigns Table */}
                 <Card className="overflow-hidden">
-
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle>Performance por Campanha</CardTitle>
                         <span className="text-xs bg-muted px-2 py-1 rounded font-mono">Top Campanhas via GA4</span>

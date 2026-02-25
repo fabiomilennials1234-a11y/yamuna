@@ -162,6 +162,8 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     return {
         kpis: {
             investment: totalInvestment,
+            googleAdsCost,
+            metaAdsCost,
             costPercentage,
             ticketAvg,
             ticketAvgNew,

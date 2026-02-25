@@ -1,12 +1,12 @@
 // Server Component
 
-import { Suspense } from "react";
-import { getMetaTopCreatives } from "@/lib/services/meta";
+import { getMetaTopCreatives, getMetaAdsInsights } from "@/lib/services/meta";
 import { MetaAdsClient } from "./MetaAdsClient";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DollarSign, MousePointer2, TrendingUp, BarChart3 } from "lucide-react";
 
-// Enable ISR with 5 minute revalidation
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
 
 interface Props {
     searchParams: Promise<{
@@ -20,7 +20,7 @@ export default async function MetaAdsPage(props: Props) {
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 
-    const formatMetaDate = (str: string) => {
+    const formatDate = (str: string) => {
         const d = new Date();
         if (str === "today") return d.toISOString().split('T')[0];
         if (str === "30daysAgo") {
@@ -30,14 +30,29 @@ export default async function MetaAdsPage(props: Props) {
         return str;
     };
 
-    const s = formatMetaDate(startDate);
-    const e = formatMetaDate(endDate);
+    const s = formatDate(startDate);
+    const e = formatDate(endDate);
 
-    const creativesResult: any = await getMetaTopCreatives(s, e);
+    // Fetch creatives + account-level insights in parallel
+    const [creativesResult, insights] = await Promise.all([
+        getMetaTopCreatives(s, e),
+        getMetaAdsInsights(s, e),
+    ]);
 
-    // Check if result is an error object
-    const error = !Array.isArray(creativesResult) ? creativesResult.error : null;
+    const error = !Array.isArray(creativesResult) ? (creativesResult as any).error : null;
     const creatives = Array.isArray(creativesResult) ? creativesResult : [];
+
+    const totalSpend = insights?.spend ?? 0;
+    const totalImpressions = insights?.impressions ?? 0;
+    const totalClicks = insights?.clicks ?? 0;
+    const cpc = insights?.cpc ?? 0;
+    const ctr = insights?.ctr ?? 0;
+    const roas = insights?.purchase_roas ?? 0;
+
+    // Total revenue attributed by Meta (sum from creatives)
+    const totalRevenue = creatives.reduce((sum: number, c: any) => sum + (c.revenue ?? 0), 0);
+    const calculatedRoas = totalSpend > 0 && totalRevenue > 0 ? totalRevenue / totalSpend : 0;
+    const displayRoas = roas > 0 ? roas : calculatedRoas;
 
     return (
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
@@ -59,6 +74,63 @@ export default async function MetaAdsPage(props: Props) {
                         </div>
                         <p className="text-red-400 text-sm font-mono">{error}</p>
                         <p className="text-red-400/70 text-xs mt-2">Verifique seu Token de Acesso em .env.local</p>
+                    </div>
+                )}
+
+                {/* Investment Summary */}
+                {!error && (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Investimento Meta</CardTitle>
+                                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-blue-400">
+                                    R$ {totalSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">Gasto total no período · fonte: Meta API</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">ROAS Meta</CardTitle>
+                                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">
+                                    {displayRoas > 0 ? `${displayRoas.toFixed(2)}x` : "—"}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">Retorno sobre investimento</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Cliques</CardTitle>
+                                <MousePointer2 className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{totalClicks.toLocaleString('pt-BR')}</div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    CPC: R$ {cpc.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · CTR: {ctr.toFixed(2)}%
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Impressões</CardTitle>
+                                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{totalImpressions.toLocaleString('pt-BR')}</div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    CPM: R$ {(totalSpend > 0 && totalImpressions > 0 ? (totalSpend / totalImpressions * 1000) : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                            </CardContent>
+                        </Card>
                     </div>
                 )}
 
