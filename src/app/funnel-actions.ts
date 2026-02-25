@@ -64,7 +64,7 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
                 getTopProductsByPeriod(startStr, endStr, 10).catch(err => { console.error('[Funnel] Products error:', err); return []; })
             ]);
             return { ga4, tiny: tiny || [], wake: wake || [], products };
-        }, CACHE_TTL.MEDIUM),
+        }, CACHE_TTL.HOUR), // 1h — background job atualiza; stale-while-revalidate serve dado antigo
 
         // Current month data
         withCache(`funnel:currentMonth:${currentMonthStart}`, async () => {
@@ -75,7 +75,7 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
                 getWakeOrders(currentMonthStart, currentMonthEnd).catch(() => [])
             ]);
             return { ga4, meta, tiny: tiny || [], wake: wake || [] };
-        }, CACHE_TTL.MEDIUM),
+        }, CACHE_TTL.HOUR), // 1h — mês atual muda com frequência mas não precisa ser em tempo real
 
         // Previous month data
         withCache(`funnel:prevMonth:${prevMonthStart}`, async () => {
@@ -86,7 +86,7 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
                 getWakeOrders(prevMonthStart, prevMonthEnd).catch(() => [])
             ]);
             return { ga4, meta, tiny: tiny || [], wake: wake || [] };
-        }, CACHE_TTL.LONG),
+        }, CACHE_TTL.DAY), // 24h — mês anterior não muda, pode ser cacheado por muito tempo
 
         getCurrentMonthGoalLocal(),
         getPreviousMonthGoalLocal()

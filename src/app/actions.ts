@@ -84,7 +84,7 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
         console.log(`[Dashboard] ✅ Fresh data fetched successfully (Tiny: ${tinyOrders?.length || 0} orders)`);
         return { googleData, tinyOrders: tinyOrders || [], metaData, wakeOrders: wakeOrders || [] };
-    }, CACHE_TTL.LONG); // 15 minutes - reduced API calls for better performance
+    }, CACHE_TTL.DAY); // 24h — background job atualiza a cada 1h; usuário sempre vê dado do cache
 
     console.log(`[Dashboard] 📦 Data retrieved (from cache or fresh)`);
 

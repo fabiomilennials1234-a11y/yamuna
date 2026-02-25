@@ -35,8 +35,17 @@ interface CacheEntry<T> {
 }
 const memoryCache = new Map<string, CacheEntry<any>>();
 
-/** Lê do Supabase metrics_snapshots; retorna null se não encontrado ou expirado */
-async function getFromSupabase<T>(key: string): Promise<T | null> {
+interface SupabaseCacheResult<T> {
+    data: T;
+    isStale: boolean;
+}
+
+/**
+ * Lê do Supabase metrics_snapshots.
+ * SEMPRE retorna dados se existirem — mesmo que expirados (stale).
+ * O campo isStale sinaliza que o dado precisa ser renovado em background.
+ */
+async function getFromSupabase<T>(key: string): Promise<SupabaseCacheResult<T> | null> {
     if (!supabaseCache) return null;
     try {
         const { data, error } = await supabaseCache
@@ -46,9 +55,9 @@ async function getFromSupabase<T>(key: string): Promise<T | null> {
             .single();
 
         if (error || !data) return null;
-        if (new Date(data.expires_at) <= new Date()) return null; // expirado
 
-        return data.data as T;
+        const isStale = new Date(data.expires_at) <= new Date();
+        return { data: data.data as T, isStale };
     } catch {
         return null;
     }
@@ -70,9 +79,20 @@ async function setInSupabase(key: string, value: unknown, ttlSeconds: number): P
     }
 }
 
+// Controla quais chaves já têm refresh em background ativo (evita duplicatas)
+const backgroundRefreshInProgress = new Set<string>();
+
 /**
- * Get or set cached data with TTL
- * Tiers: Memory → Supabase → Redis → Fetcher (API)
+ * Get or set cached data com estratégia Stale-While-Revalidate.
+ *
+ * Hierarquia:
+ * 1. Memory  → retorna imediatamente se fresco
+ * 2. Redis   → retorna imediatamente se configurado e com hit
+ * 3. Supabase → retorna SEMPRE se existir (mesmo stale) + dispara refresh em background
+ * 4. API     → apenas se nenhum tier tem dado algum (cold start)
+ *
+ * O usuário NUNCA espera por dados stale — recebe o dado antigo na hora
+ * e o background atualiza para a próxima requisição.
  */
 export async function withCache<T>(
     key: string,
@@ -94,7 +114,6 @@ export async function withCache<T>(
             const cached = await redis.get<T>(key);
             if (cached !== null && cached !== undefined) {
                 console.log(`[Cache] ✅ REDIS HIT: ${key}`);
-                // Repopula memória para próxima leitura
                 memoryCache.set(key, { data: cached, expiresAt: now + (ttlSeconds * 1000) });
                 return cached;
             }
@@ -103,33 +122,44 @@ export async function withCache<T>(
         }
     }
 
-    // ── Tier 3: Supabase (persistente entre restarts) ──────────────────────
-    const supabaseCached = await getFromSupabase<T>(key);
-    if (supabaseCached !== null) {
-        console.log(`[Cache] ✅ SUPABASE HIT: ${key}`);
-        // Repopula memória para próxima leitura
-        memoryCache.set(key, { data: supabaseCached, expiresAt: now + (ttlSeconds * 1000) });
-        return supabaseCached;
+    // ── Tier 3: Supabase — Stale-While-Revalidate ──────────────────────────
+    const supabaseResult = await getFromSupabase<T>(key);
+    if (supabaseResult !== null) {
+        const { data: cachedData, isStale } = supabaseResult;
+
+        if (isStale && !backgroundRefreshInProgress.has(key)) {
+            // Dado existe mas expirou → retorna agora, renova em background
+            console.log(`[Cache] ♻️  SUPABASE STALE (background refresh): ${key}`);
+            backgroundRefreshInProgress.add(key);
+            setImmediate(() => {
+                fetcher()
+                    .then(fresh => Promise.all([
+                        setInSupabase(key, fresh, ttlSeconds),
+                        Promise.resolve(memoryCache.set(key, { data: fresh, expiresAt: Date.now() + ttlSeconds * 1000 })),
+                    ]))
+                    .catch(() => {})
+                    .finally(() => backgroundRefreshInProgress.delete(key));
+            });
+        } else if (!isStale) {
+            console.log(`[Cache] ✅ SUPABASE HIT: ${key}`);
+        }
+
+        // Repopula memória para próxima leitura ser instantânea
+        memoryCache.set(key, { data: cachedData, expiresAt: now + (ttlSeconds * 1000) });
+        return cachedData;
     }
 
-    // ── Tier 4: API fetch (lento — último recurso) ─────────────────────────
-    console.log(`[Cache] ❌ MISS (todos os tiers): ${key}`);
+    // ── Tier 4: API fetch (lento — apenas cold start / primeiro boot) ───────
+    console.log(`[Cache] ❌ COLD START: ${key}`);
     const data = await fetcher();
 
-    // Salva em todos os tiers em paralelo (não bloqueia o retorno)
-    const storagePromises: Promise<unknown>[] = [
-        Promise.resolve(memoryCache.set(key, { data, expiresAt: now + (ttlSeconds * 1000) })),
-        setInSupabase(key, data, ttlSeconds),
-    ];
+    // Persiste em todos os tiers (fire-and-forget — não bloqueia o retorno)
+    memoryCache.set(key, { data, expiresAt: now + (ttlSeconds * 1000) });
+    const persist: Promise<unknown>[] = [setInSupabase(key, data, ttlSeconds)];
     if (redis) {
-        storagePromises.push(
-            redis.setex(key, ttlSeconds, JSON.stringify(data)).catch((e) =>
-                console.error(`[Cache] ⚠️ Redis write error:`, e)
-            )
-        );
+        persist.push(redis.setex(key, ttlSeconds, JSON.stringify(data)).catch(() => {}));
     }
-    // Fire-and-forget: não espera as escritas terminarem
-    Promise.all(storagePromises).catch(() => {});
+    Promise.all(persist).catch(() => {});
 
     return data;
 }
