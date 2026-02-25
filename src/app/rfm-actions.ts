@@ -67,5 +67,5 @@ export async function fetchRFMData(months: number = 12) {
             console.error(`[RFM] ❌ Critical error:`, error);
             return [];
         }
-    }, CACHE_TTL.HOUR);
+    }, CACHE_TTL.FOUR_HOURS);
 }

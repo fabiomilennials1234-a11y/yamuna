@@ -6,6 +6,7 @@ import { getProductSalesHistory } from "@/lib/services/sales-history";
 import { generateForecast } from "@/lib/services/sales-forecast";
 import { getProductStock } from "@/lib/services/stock-service";
 import { format, subDays, subMonths } from "date-fns";
+import { withCache, CACHE_TTL } from "@/lib/services/cache";
 
 /**
  * Fetch top products with ABC classification
@@ -159,6 +160,8 @@ export async function fetchOmniProductsData(
     const prevEnd = format(subDays(new Date(start), 1), "yyyy-MM-dd");
     const prevStart = format(subDays(new Date(start), daysDiff + 1), "yyyy-MM-dd");
 
+    const _omniCacheKey = `omni:products:v1:${start}:${end}:${limit}`;
+    return withCache(_omniCacheKey, async () => {
     console.log(`[OmniProducts] 🔄 Fetching OMNI for Current: ${start}-${end} | Previous: ${prevStart}-${prevEnd}`);
 
     // 2. Fetch both periods in parallel (2 scans instead of 6!)
@@ -209,6 +212,7 @@ export async function fetchOmniProductsData(
         b2b: process(current.b2b, previous.b2b),
         b2c: process(current.b2c, previous.b2c)
     };
+    }, CACHE_TTL.LONG);
 }
 
 /**

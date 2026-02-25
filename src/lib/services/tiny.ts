@@ -1,3 +1,5 @@
+import { withCache, CACHE_TTL } from "@/lib/services/cache";
+
 const TINY_TOKEN = process.env.TINY_API_TOKEN;
 
 interface TinyOrderBasic {
@@ -211,13 +213,15 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         return [];
     }
 
+    const _cacheKey = `tiny:orders:v1:${startDate || 'all'}:${endDate || 'all'}`;
+    return withCache(_cacheKey, async () => {
     console.log(`[Tiny API] ✓ Token configurado`);
     console.log(`[Tiny API] 📅 Buscando pedidos de ${startDate} até ${endDate}`);
 
     let allOrders: TinyOrderBasic[] = [];
     let page = 1;
     let hasMore = true;
-    const maxPages = 1000; // Increased to 1000 to ensure ABSOLUTELY ALL orders are fetched as requested
+    const maxPages = 100; // Limitado a 10,000 pedidos por período para evitar timeouts
 
     // Convert dates to Tiny format (dd/MM/yyyy)
     let tinyStartDate = "";
@@ -384,6 +388,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     console.log(`[Tiny API] ✅ Returning ${mappedOrders.length} orders (no local date filter)`);
 
     return mappedOrders;
+    }, CACHE_TTL.LONG);
 }
 
 export async function getTinyProducts() {

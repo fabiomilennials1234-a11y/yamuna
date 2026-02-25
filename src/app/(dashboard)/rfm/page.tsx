@@ -2,12 +2,11 @@ import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { fetchRFMData } from "@/app/rfm-actions";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
-// Force dynamic rendering because this page makes API calls
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600; // Revalida a cada 1 hora (dados históricos estáveis)
 
 
 export default async function RFMPage() {
-    const rfmData = await fetchRFMData(12);
+    const rfmData = await fetchRFMData(6);
 
     // Get segment colors
     const getScoreColor = (score: number) => {

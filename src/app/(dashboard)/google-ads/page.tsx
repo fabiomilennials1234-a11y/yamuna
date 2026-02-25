@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getGA4GoogleAdsCampaigns } from "@/lib/services/ga4-reports";
 import { format, subDays, parseISO } from "date-fns";
 
-// Enable dynamic rendering
-export const dynamic = 'force-dynamic';
+export const revalidate = 300; // Revalida a cada 5 minutos
 
 interface Props {
     searchParams: Promise<{ start?: string; end?: string }>;

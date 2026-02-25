@@ -3,7 +3,6 @@ import { fetchOmniProductsData } from "@/app/products-actions";
 import { ProductsTable } from "@/components/dashboard/products-table";
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 interface Props {
     searchParams: Promise<{
