@@ -212,7 +212,7 @@ export async function fetchOmniProductsData(
         b2b: process(current.b2b, previous.b2b),
         b2c: process(current.b2c, previous.b2c)
     };
-    }, CACHE_TTL.LONG);
+    }, CACHE_TTL.HOUR); // 1 hora — sincronizado com o CacheWarmer
 }
 
 /**

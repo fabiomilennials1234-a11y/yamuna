@@ -388,7 +388,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     console.log(`[Tiny API] ✅ Returning ${mappedOrders.length} orders (no local date filter)`);
 
     return mappedOrders;
-    }, CACHE_TTL.LONG);
+    }, CACHE_TTL.HOUR); // 1 hora — sincronizado com o CacheWarmer
 }
 
 export async function getTinyProducts() {

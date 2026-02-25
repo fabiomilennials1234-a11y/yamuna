@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { GlobalFilterManager } from "@/components/global-filter-manager";
+import { CacheWarmer } from "@/components/layout/CacheWarmer";
 import {
     SidebarInset,
     SidebarProvider,
@@ -102,6 +103,7 @@ export default async function DashboardLayout({
                 } as React.CSSProperties
             }
         >
+            <CacheWarmer />
             <GlobalFilterManager />
             <AppSidebar user={userData} modules={modules} tenantName={tenantName} />
             <SidebarInset>
