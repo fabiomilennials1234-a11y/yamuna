@@ -38,11 +38,31 @@ function isIntermediadorTag(pedido: any): boolean {
 async function fetchTinyOrdersOmnichannel(
     startDate: string,
     endDate: string,
-    limit: number = 50 // Decreased to ensure speed
+    limit: number = 50
 ) {
     // 1. Fetch BASIC list
     const tinyOrders = await getTinyOrders(startDate, endDate);
-    const ordersToScan = tinyOrders.slice(0, limit);
+
+    // 2. Separate marketplace (Intermediador) vs direct orders using basic list field
+    //    The basic list already exposes numero_ecommerce, so we can split before doing
+    //    expensive detailed fetches — this guarantees B2B/B2C orders are always scanned.
+    const marketplaceOrders = tinyOrders.filter(o => {
+        const numEc = o.raw?.numero_ecommerce;
+        return numEc !== null && numEc !== undefined && String(numEc).trim() !== '';
+    });
+    const directOrders = tinyOrders.filter(o => {
+        const numEc = o.raw?.numero_ecommerce;
+        return !numEc || String(numEc).trim() === '';
+    });
+
+    // Take a balanced sample: up to 35 from each group (70 total detailed calls)
+    const sampleSize = Math.floor(limit * 0.7); // 35 per group when limit=50
+    const ordersToScan = [
+        ...marketplaceOrders.slice(0, sampleSize),
+        ...directOrders.slice(0, sampleSize),
+    ];
+
+    console.log(`[Products] 📊 Sampling: ${marketplaceOrders.slice(0, sampleSize).length} marketplace + ${directOrders.slice(0, sampleSize).length} diretos (de ${tinyOrders.length} totais)`);
 
     const TINY_TOKEN = process.env.TINY_API_TOKEN;
 
