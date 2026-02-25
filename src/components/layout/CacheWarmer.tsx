@@ -2,18 +2,15 @@
 
 import { useEffect } from 'react';
 
-// Aquece o cache ao abrir o app e refresca automaticamente a cada 1 hora
-const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
-
+/**
+ * Fallback client-side: dispara warm-up apenas uma vez ao abrir o app.
+ * O warm-up principal roda no servidor via instrumentation.ts a cada hora.
+ * Este componente serve apenas para garantir que o cache está quente
+ * caso o usuário acesse logo após um restart do servidor.
+ */
 export function CacheWarmer() {
     useEffect(() => {
         fetch('/api/warm-cache').catch(() => {});
-
-        const interval = setInterval(() => {
-            fetch('/api/warm-cache').catch(() => {});
-        }, REFRESH_INTERVAL_MS);
-
-        return () => clearInterval(interval);
     }, []);
 
     return null;
