@@ -1,156 +1,171 @@
 "use client";
 
-import { CalendarIcon, CheckCircle2 } from "lucide-react";
+import { ChevronDown, CheckIcon } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
-import { format, subDays, parseISO } from "date-fns";
+import { useState, useEffect, useMemo } from "react";
+import {
+    format,
+    startOfMonth,
+    endOfMonth,
+    subMonths,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 const FILTER_STORAGE_KEY = "dashboard-date-filter";
+
+interface MonthOption {
+    value: string;         // unique key
+    label: string;         // display label
+    start: string;         // yyyy-MM-dd
+    end: string;           // yyyy-MM-dd
+}
+
+function buildMonthOptions(): MonthOption[] {
+    const today = new Date();
+    const options: MonthOption[] = [];
+
+    // "Geral" = últimos 12 meses
+    options.push({
+        value: "geral",
+        label: "Geral (12 meses)",
+        start: format(startOfMonth(subMonths(today, 11)), "yyyy-MM-dd"),
+        end: format(today, "yyyy-MM-dd"),
+    });
+
+    // Last 12 months (individual)
+    for (let i = 0; i < 12; i++) {
+        const month = subMonths(today, i);
+        const isCurrentMonth = i === 0;
+        options.push({
+            value: format(month, "yyyy-MM"),
+            label: format(month, "MMMM yyyy", { locale: ptBR })
+                .replace(/^\w/, c => c.toUpperCase()),
+            start: format(startOfMonth(month), "yyyy-MM-dd"),
+            end: isCurrentMonth
+                ? format(today, "yyyy-MM-dd")
+                : format(endOfMonth(month), "yyyy-MM-dd"),
+        });
+    }
+
+    return options;
+}
 
 export function DateRangeFilter() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
 
-    // Using date objects for the Calendar component
-    const [date, setDate] = useState<{
-        from: Date | undefined;
-        to: Date | undefined;
-    }>({
-        from: undefined,
-        to: undefined,
-    });
+    const options = useMemo(() => buildMonthOptions(), []);
 
-    const [isOpen, setIsOpen] = useState(false);
-    const [showApplied, setShowApplied] = useState(false);
+    // Detect active option from URL params
+    const activeOption = useMemo(() => {
+        const start = searchParams.get("start");
+        const end = searchParams.get("end");
+        if (!start || !end) return null;
+        return options.find(o => o.start === start && o.end === end) ?? null;
+    }, [searchParams, options]);
 
-    // Load from localStorage on mount
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
+
+    // On mount: if no URL params, apply current month as default
     useEffect(() => {
-        const defaultEnd = new Date();
-        const defaultStart = subDays(defaultEnd, 30);
+        if (!mounted) return;
 
-        // Try to load from localStorage first
+        // URL already has params — nothing to do
+        if (searchParams.get("start") && searchParams.get("end")) return;
+
+        // Try to restore from localStorage first
         const stored = localStorage.getItem(FILTER_STORAGE_KEY);
-        let start = defaultStart;
-        let end = defaultEnd;
-
         if (stored) {
             try {
                 const { startStr, endStr } = JSON.parse(stored);
-                if (startStr && startStr !== '30daysAgo') {
-                    const [y, m, d] = startStr.split('-').map(Number);
-                    start = new Date(y, m - 1, d);
+                if (startStr && endStr) {
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set("start", startStr);
+                    params.set("end", endStr);
+                    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+                    return;
                 }
-                if (endStr && endStr !== 'today') {
-                    const [y, m, d] = endStr.split('-').map(Number);
-                    end = new Date(y, m - 1, d);
-                }
-            } catch (err) {
-                console.error('[DateRangeFilter] Failed to parse stored filter', err);
-            }
+            } catch { /* ignore */ }
         }
 
-        // Override with URL params if present
-        const startStr = searchParams.get("start");
-        const endStr = searchParams.get("end");
-
-        if (startStr && startStr !== '30daysAgo') {
-            const [y, m, d] = startStr.split('-').map(Number);
-            start = new Date(y, m - 1, d);
+        // Default: current month
+        const currentMonth = options[1]; // index 0 = Geral, index 1 = current month
+        if (currentMonth) {
+            applyOption(currentMonth, false);
         }
-        if (endStr && endStr !== 'today') {
-            const [y, m, d] = endStr.split('-').map(Number);
-            end = new Date(y, m - 1, d);
-        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mounted]);
 
-        setDate({ from: start, to: end });
-    }, [searchParams]);
+    function applyOption(option: MonthOption, pushHistory = true) {
+        localStorage.setItem(
+            FILTER_STORAGE_KEY,
+            JSON.stringify({ startStr: option.start, endStr: option.end })
+        );
 
-    const handleApply = (newDate: { from: Date | undefined; to: Date | undefined } | undefined) => {
-        if (!newDate?.from) return;
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("start", option.start);
+        params.set("end", option.end);
 
-        setDate(newDate);
-
-        if (newDate.from && newDate.to) {
-            const startStr = format(newDate.from, "yyyy-MM-dd");
-            const endStr = format(newDate.to, "yyyy-MM-dd");
-
-            // Save to localStorage for persistence across pages
-            localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ startStr, endStr }));
-
-            const params = new URLSearchParams(searchParams.toString());
-            params.set("start", startStr);
-            params.set("end", endStr);
-
-            console.log(`[DateRangeFilter] Applying filter: ${startStr} to ${endStr}`);
-            console.log(`[DateRangeFilter] New URL: ${pathname}?${params.toString()}`);
-
-            setIsOpen(false);
-
-            // Show "Filter Applied" message
-            setShowApplied(true);
-            setTimeout(() => setShowApplied(false), 2000);
-
+        if (pushHistory) {
             router.push(`${pathname}?${params.toString()}`);
+        } else {
+            router.replace(`${pathname}?${params.toString()}`, { scroll: false });
         }
-    };
+    }
+
+    const displayLabel = activeOption?.label ?? "Selecione o período";
 
     return (
-        <div className="grid gap-2">
-            <Popover open={isOpen} onOpenChange={setIsOpen}>
-                <PopoverTrigger asChild>
-                    <Button
-                        id="date"
-                        variant={"outline"}
-                        className={cn(
-                            "w-[260px] justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
-                        )}
-                    >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date?.from ? (
-                            date.to ? (
-                                <>
-                                    {format(date.from, "dd/MM/yyyy")} -{" "}
-                                    {format(date.to, "dd/MM/yyyy")}
-                                </>
-                            ) : (
-                                format(date.from, "dd/MM/yyyy")
-                            )
-                        ) : (
-                            <span>Selecione uma data</span>
-                        )}
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={date?.from}
-                        selected={date}
-                        onSelect={handleApply}
-                        numberOfMonths={2}
-                        locale={ptBR}
-                    />
-                </PopoverContent>
-            </Popover>
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="outline"
+                    className="min-w-[200px] justify-between text-left font-normal"
+                >
+                    <span className="truncate">{displayLabel}</span>
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </DropdownMenuTrigger>
 
-            {/* Filter Applied Confirmation */}
-            {showApplied && (
-                <div className="flex items-center gap-2 text-xs text-emerald-500 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <CheckCircle2 className="h-3 w-3" />
-                    <span className="font-medium">Filtro Aplicado</span>
-                </div>
-            )}
-        </div>
+            <DropdownMenuContent align="end" className="w-[220px] max-h-[400px] overflow-y-auto">
+                {/* Geral */}
+                <DropdownMenuItem
+                    key={options[0].value}
+                    onClick={() => applyOption(options[0])}
+                    className="flex items-center justify-between"
+                >
+                    <span className="font-medium">{options[0].label}</span>
+                    {activeOption?.value === options[0].value && (
+                        <CheckIcon className="h-4 w-4 text-primary" />
+                    )}
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                {/* Individual months */}
+                {options.slice(1).map((option) => (
+                    <DropdownMenuItem
+                        key={option.value}
+                        onClick={() => applyOption(option)}
+                        className="flex items-center justify-between"
+                    >
+                        <span>{option.label}</span>
+                        {activeOption?.value === option.value && (
+                            <CheckIcon className="h-4 w-4 text-primary" />
+                        )}
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }

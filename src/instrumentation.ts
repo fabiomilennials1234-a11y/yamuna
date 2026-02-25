@@ -48,13 +48,13 @@ export async function register() {
 
 async function runMainWarmup() {
     try {
-        const { format, subDays } = await import('date-fns');
+        const { format, startOfMonth } = await import('date-fns');
         const { fetchDashboardData } = await import('@/app/actions');
         const { fetchFunnelData } = await import('@/app/funnel-actions');
         const { fetchOmniProductsData } = await import('@/app/products-actions');
 
         const endDate = format(new Date(), 'yyyy-MM-dd');
-        const startDate = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+        const startDate = format(startOfMonth(new Date()), 'yyyy-MM-dd'); // mês atual (padrão do filtro)
 
         console.log(`[WarmCache] 🔥 Warm-up principal: ${startDate} → ${endDate}`);
         const t0 = Date.now();

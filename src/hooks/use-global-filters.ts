@@ -2,12 +2,13 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { format, startOfMonth } from 'date-fns';
 
 const FILTER_STORAGE_KEY = "dashboard-date-filter";
 
 /**
- * Hook to automatically apply stored filters to page URLs
- * This ensures filters persist across all pages in the dashboard
+ * Hook to automatically apply stored filters to page URLs.
+ * Falls back to current month if nothing is stored.
  */
 export function useGlobalFilters() {
     const pathname = usePathname();
@@ -22,27 +23,32 @@ export function useGlobalFilters() {
 
         // Try to load from localStorage
         const stored = localStorage.getItem(FILTER_STORAGE_KEY);
-        if (!stored) return;
 
-        try {
-            const { startStr, endStr } = JSON.parse(stored);
-
-            // Only apply if we have valid dates
-            if (startStr && endStr && startStr !== '30daysAgo' && endStr !== 'today') {
-                const params = new URLSearchParams(searchParams.toString());
-                params.set("start", startStr);
-                params.set("end", endStr);
-
-                console.log(`[useGlobalFilters] Auto-applying stored filter to ${pathname}`);
-
-                // Use replace to avoid adding to history
-                router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        if (stored) {
+            try {
+                const { startStr, endStr } = JSON.parse(stored);
+                if (startStr && endStr) {
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set("start", startStr);
+                    params.set("end", endStr);
+                    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+                    return;
+                }
+            } catch (err) {
+                console.error('[useGlobalFilters] Failed to parse stored filter', err);
             }
-        } catch (err) {
-            console.error('[useGlobalFilters] Failed to parse stored filter', err);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pathname]); // Only run when pathname changes - ignore searchParams/router to prevent loops
+
+        // No stored filter — default to current month
+        const start = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+        const end = format(new Date(), 'yyyy-MM-dd');
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("start", start);
+        params.set("end", end);
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pathname]); // Only run when pathname changes
 
     return null;
 }
