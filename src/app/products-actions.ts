@@ -160,7 +160,7 @@ export async function fetchOmniProductsData(
     const prevEnd = format(subDays(new Date(start), 1), "yyyy-MM-dd");
     const prevStart = format(subDays(new Date(start), daysDiff + 1), "yyyy-MM-dd");
 
-    const _omniCacheKey = `omni:products:v1:${start}:${end}:${limit}`;
+    const _omniCacheKey = `omni:products:v2:${start}:${end}:${limit}`;
     return withCache(_omniCacheKey, async () => {
     console.log(`[OmniProducts] 🔄 Fetching OMNI for Current: ${start}-${end} | Previous: ${prevStart}-${prevEnd}`);
 
