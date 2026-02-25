@@ -4,9 +4,36 @@ import { normalizeProduct } from "./product-utils";
 import { ProductSales } from "./tiny-products";
 
 /**
+ * Checks if a Tiny order is an "Intermediador" (marketplace) order.
+ *
+ * Primary: numero_ecommerce is set → order came through a marketplace integration (Olist, ML, Shopee, etc.)
+ * Fallback: marcadores/tags contain "intermediador" label (manual tag)
+ */
+function isIntermediadorTag(pedido: any): boolean {
+    // Primary: e-commerce marketplace integration field
+    const numEcommerce = pedido.numero_ecommerce;
+    if (numEcommerce !== null && numEcommerce !== undefined && String(numEcommerce).trim() !== '') {
+        return true;
+    }
+    // Fallback: manual "Intermediador" tag in marcadores
+    const tags = pedido.tags || pedido.marcadores || [];
+    if (!Array.isArray(tags)) return false;
+    return tags.some((t: any) => {
+        const name = (t.tag || t.nome || t.descricao || t || '').toString().toLowerCase().trim();
+        return name === 'intermediador';
+    });
+}
+
+/**
  * fetchTinyOrdersOmnichannel
- * Fetches orders ONCE and segments them into All, B2B, and B2C buckets in memory.
+ * Fetches orders ONCE and segments them into All, B2B, B2C, and Intermediador buckets in memory.
  * Eliminates redundant API calls when switching tabs.
+ *
+ * Segmentation (mutually exclusive):
+ * - Intermediador: pedido has the "Intermediador" tag
+ * - B2B: no Intermediador tag + (CNPJ or B2B seller)
+ * - B2C: no Intermediador tag + not B2B (default)
+ * - All: every order regardless of channel
  */
 async function fetchTinyOrdersOmnichannel(
     startDate: string,
@@ -23,8 +50,9 @@ async function fetchTinyOrdersOmnichannel(
     const mapAll = new Map<string, ProductSales>();
     const mapB2B = new Map<string, ProductSales>();
     const mapB2C = new Map<string, ProductSales>();
+    const mapIntermed = new Map<string, ProductSales>();
 
-    let revAll = 0, revB2B = 0, revB2C = 0;
+    let revAll = 0, revB2B = 0, revB2C = 0, revIntermed = 0;
 
     // Import segmentation logic
     const { isCNPJ, B2B_SELLERS } = await import("./b2b-segmentation");
@@ -62,12 +90,16 @@ async function fetchTinyOrdersOmnichannel(
                 const pedido = data.retorno?.pedido;
                 if (!pedido) return;
 
-                // --- SEGMENTATION LOGIC ---
+                // --- SEGMENTATION LOGIC (mutually exclusive) ---
                 const client = pedido.cliente || {};
                 const cpfCnpj = client.cpf_cnpj || client.cnpj || pedido.cpf_cnpj || '';
                 const seller = pedido.nome_vendedor || pedido.vendedor || '';
 
-                const isB2B = (cpfCnpj && isCNPJ(cpfCnpj)) || (seller && B2B_SELLERS.includes(seller));
+                // 1. Check for "Intermediador" tag first (takes priority)
+                const isIntermed = isIntermediadorTag(pedido);
+
+                // 2. B2B: only if not intermediador
+                const isB2B = !isIntermed && ((cpfCnpj && isCNPJ(cpfCnpj)) || (seller && B2B_SELLERS.includes(seller)));
 
                 // Process Items
                 const orderItems = pedido.itens || [];
@@ -83,28 +115,7 @@ async function fetchTinyOrdersOmnichannel(
                     const realQty = qty * multiplier;
                     const key = normalizedName;
 
-                    // Helper to add to map
-                    const addToMap = (map: Map<string, ProductSales>, totalRevRef: { val: number }) => {
-                        if (!map.has(key)) {
-                            map.set(key, {
-                                productId: item.codigo,
-                                productName: normalizedName,
-                                quantity: 0,
-                                revenue: 0,
-                                percentage: 0
-                            });
-                        }
-                        const p = map.get(key)!;
-                        p.quantity += realQty;
-                        p.revenue += revenue;
-                        totalRevRef.val += revenue;
-                    };
-
-                    // Always add to ALL
-                    // NOTE: Javascript primitives are passed by value, so we can't pass 'revAll' direct to be mutated.
-                    // We update variables manually below.
-
-                    // 1. ALL
+                    // 1. ALL — always
                     if (!mapAll.has(key)) {
                         mapAll.set(key, { productId: item.codigo, productName: normalizedName, quantity: 0, revenue: 0, percentage: 0 });
                     }
@@ -113,8 +124,14 @@ async function fetchTinyOrdersOmnichannel(
                     pAll.revenue += revenue;
                     revAll += revenue;
 
-                    // 2. B2B or B2C
-                    if (isB2B) {
+                    // 2. Channel-specific (mutually exclusive)
+                    if (isIntermed) {
+                        if (!mapIntermed.has(key)) mapIntermed.set(key, { productId: item.codigo, productName: normalizedName, quantity: 0, revenue: 0, percentage: 0 });
+                        const pIntermed = mapIntermed.get(key)!;
+                        pIntermed.quantity += realQty;
+                        pIntermed.revenue += revenue;
+                        revIntermed += revenue;
+                    } else if (isB2B) {
                         if (!mapB2B.has(key)) mapB2B.set(key, { productId: item.codigo, productName: normalizedName, quantity: 0, revenue: 0, percentage: 0 });
                         const pB2B = mapB2B.get(key)!;
                         pB2B.quantity += realQty;
@@ -143,12 +160,13 @@ async function fetchTinyOrdersOmnichannel(
     return {
         mapAll, revAll,
         mapB2B, revB2B,
-        mapB2C, revB2C
+        mapB2C, revB2C,
+        mapIntermed, revIntermed,
     };
 }
 
 /**
- * Public function to get all 3 datasets at once
+ * Public function to get all 4 datasets at once
  */
 export async function getOmnichannelProducts(
     startDate: string,
@@ -159,7 +177,8 @@ export async function getOmnichannelProducts(
 
     try {
         const scanLimit = 50; // Optimized for speed (approx 40s)
-        const { mapAll, revAll, mapB2B, revB2B, mapB2C, revB2C } = await fetchTinyOrdersOmnichannel(startDate, endDate, scanLimit);
+        const { mapAll, revAll, mapB2B, revB2B, mapB2C, revB2C, mapIntermed, revIntermed } =
+            await fetchTinyOrdersOmnichannel(startDate, endDate, scanLimit);
 
         // Transform Maps to Sorted Arrays
         const processMap = (map: Map<string, ProductSales>, totalRev: number) => {
@@ -176,10 +195,11 @@ export async function getOmnichannelProducts(
             all: processMap(mapAll, revAll),
             b2b: processMap(mapB2B, revB2B),
             b2c: processMap(mapB2C, revB2C),
+            intermediador: processMap(mapIntermed, revIntermed),
         };
 
     } catch (e) {
         console.error("[Products] ❌ Tiny Omnichannel failed:", e);
-        return { all: [], b2b: [], b2c: [] };
+        return { all: [], b2b: [], b2c: [], intermediador: [] };
     }
 }

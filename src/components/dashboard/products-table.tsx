@@ -25,6 +25,7 @@ interface ProductsTableProps {
         all: Product[];
         b2b: Product[];
         b2c: Product[];
+        intermediador: Product[];
     };
     currentLimit: string;
 }
@@ -51,7 +52,8 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
         console.log(`[ProductsTable] Available Data:`, {
             all: initialData.all?.length || 0,
             b2b: initialData.b2b?.length || 0,
-            b2c: initialData.b2c?.length || 0
+            b2c: initialData.b2c?.length || 0,
+            intermediador: initialData.intermediador?.length || 0,
         });
     }, [activeChannel, products.length]);
 
@@ -105,6 +107,15 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
                         >
                             B2C (Consumidor)
                         </button>
+                        <button
+                            onClick={() => handleChannelChange('intermediador')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${activeChannel === 'intermediador'
+                                ? 'bg-purple-500/20 text-purple-400 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-300'
+                                }`}
+                        >
+                            Intermediador
+                        </button>
                     </div>
                 </div>
                 {/* Removed 'Show All' Toggle as requested */}
@@ -114,7 +125,7 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
                 <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                         <ShoppingCart className="text-primary" size={24} />
-                        Curva ABC - {activeChannel === 'all' ? 'Geral' : activeChannel === 'b2b' ? 'B2B' : 'B2C'}
+                        Curva ABC - {activeChannel === 'all' ? 'Geral' : activeChannel === 'b2b' ? 'B2B' : activeChannel === 'intermediador' ? 'Intermediador' : 'B2C'}
                     </CardTitle>
                     <span className="text-xs bg-muted py-1 px-3 rounded-full border">
                         {products.length} produtos listados
@@ -147,7 +158,7 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
                                                 <div className="space-y-1">
                                                     <p className="font-medium">Nenhum produto encontrado</p>
                                                     <p className="text-xs text-slate-600">
-                                                        Canal: {activeChannel === 'all' ? 'Todos' : activeChannel === 'b2b' ? 'B2B (Empresas)' : 'B2C (Consumidor)'}
+                                                        Canal: {activeChannel === 'all' ? 'Todos' : activeChannel === 'b2b' ? 'B2B (Empresas)' : activeChannel === 'intermediador' ? 'Intermediador' : 'B2C (Consumidor)'}
                                                     </p>
                                                     <p className="text-xs text-slate-600">
                                                         Tente selecionar outro período ou canal
