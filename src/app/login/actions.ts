@@ -141,28 +141,3 @@ export async function signup(formData: FormData) {
     redirect('/register?message=' + encodeURIComponent('Conta criada! Verifique seu email para confirmar o cadastro.'))
 }
 
-export async function signInWithGoogle() {
-    const supabase = await createClient()
-    const siteUrl = getSiteUrl();
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-            redirectTo: `${siteUrl}/auth/callback`,
-            queryParams: {
-                access_type: 'offline',
-                prompt: 'consent',
-            },
-        },
-    })
-
-    if (error) {
-        redirect('/register?error=' + encodeURIComponent('Erro ao conectar com Google. Tente novamente.'))
-    }
-
-    if (data.url) {
-        redirect(data.url)
-    }
-
-    redirect('/register?error=' + encodeURIComponent('Erro inesperado ao conectar com Google.'))
-}
