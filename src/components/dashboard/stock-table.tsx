@@ -30,7 +30,7 @@ const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 
 export function StockTable({ data, selectedProduct, onProductClick }: StockTableProps) {
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-    const [selectedProduct, setSelectedProduct] = useState<{ code: string; name: string } | null>(null);
+    const [analysisProduct, setAnalysisProduct] = useState<{ code: string; name: string } | null>(null);
     const [sheetOpen, setSheetOpen] = useState(false);
 
     const filteredItems = statusFilter === 'all'
@@ -38,7 +38,7 @@ export function StockTable({ data, selectedProduct, onProductClick }: StockTable
         : data.items.filter(i => i.status === statusFilter);
 
     const openAnalysis = (item: StockOverviewItem) => {
-        setSelectedProduct({ code: item.code, name: item.name });
+        setAnalysisProduct({ code: item.code, name: item.name });
         setSheetOpen(true);
     };
 
@@ -246,7 +246,7 @@ export function StockTable({ data, selectedProduct, onProductClick }: StockTable
             <ProductAnalysisSheet
                 open={sheetOpen}
                 onOpenChange={setSheetOpen}
-                product={selectedProduct}
+                product={analysisProduct}
             />
         </div>
     );
