@@ -3,6 +3,9 @@
 # superpowers brainstorm artifacts
 .superpowers/
 
+# supabase cli local state
+supabase/.temp/
+
 # dependencies
 /node_modules
 /.pnp
