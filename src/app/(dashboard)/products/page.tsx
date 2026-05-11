@@ -31,7 +31,8 @@ export default async function ProductsPage(props: Props) {
     console.log(`[ProductsPage] 📦 Fetched Data:`, {
         all: productsData.all?.length || 0,
         b2b: productsData.b2b?.length || 0,
-        b2c: productsData.b2c?.length || 0
+        b2c: productsData.b2c?.length || 0,
+        vendedores: productsData.vendedores?.length || 0
     });
 
     return (

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ShoppingCart, TrendingUp, TrendingDown, Minus, Eye, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { ShoppingCart, TrendingUp, TrendingDown, Minus, Users } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ProductAnalysisSheet } from "@/components/product-analysis-sheet";
 import { Button } from "@/components/ui/button";
@@ -20,18 +20,28 @@ interface Product {
     };
 }
 
+interface Seller {
+    sellerName: string;
+    revenue: number;
+    quantity: number;
+    revenuePercentage: number;
+    trend: {
+        value: number;
+        direction: 'up' | 'down' | 'neutral';
+    };
+}
+
 interface ProductsTableProps {
     initialData: {
         all: Product[];
         b2b: Product[];
         b2c: Product[];
-        intermediador: Product[];
+        vendedores: Seller[];
     };
     currentLimit: string;
 }
 
 export function ProductsTable({ initialData, currentLimit }: ProductsTableProps) {
-    const router = useRouter();
     const searchParams = useSearchParams();
 
     // Default to 'all' or whatever is in URL (for deep linking)
@@ -43,24 +53,17 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
     const [sheetOpen, setSheetOpen] = useState(false);
 
     // Select products based on active channel from MEMORY (Instant!)
-    // Safe access in case initialData is undefined
-    const products = initialData[activeChannel as keyof typeof initialData] || initialData.all || [];
+    const products = activeChannel !== 'vendedores'
+        ? (initialData[activeChannel as 'all' | 'b2b' | 'b2c'] || initialData.all || [])
+        : [];
+    const vendedores = activeChannel === 'vendedores' ? (initialData.vendedores || []) : [];
 
-    // Debug: Log current state
     useEffect(() => {
-        console.log(`[ProductsTable] Active Channel: ${activeChannel} | Products Count: ${products.length}`);
-        console.log(`[ProductsTable] Available Data:`, {
-            all: initialData.all?.length || 0,
-            b2b: initialData.b2b?.length || 0,
-            b2c: initialData.b2c?.length || 0,
-            intermediador: initialData.intermediador?.length || 0,
-        });
-    }, [activeChannel, products.length]);
+        console.log(`[ProductsTable] Active Channel: ${activeChannel} | Products: ${products.length} | Sellers: ${vendedores.length}`);
+    }, [activeChannel, products.length, vendedores.length]);
 
     const handleChannelChange = (channel: string) => {
         setActiveChannel(channel);
-
-        // Shallow update URL for shareability without hard refresh
         const params = new URLSearchParams(searchParams);
         params.set("channel", channel);
         window.history.replaceState(null, '', `?${params.toString()}`);
@@ -71,7 +74,10 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
         setSheetOpen(true);
     };
 
-    const isShowAll = currentLimit === "1000";
+    const channelLabel = activeChannel === 'all' ? 'Geral'
+        : activeChannel === 'b2b' ? 'B2B'
+        : activeChannel === 'b2c' ? 'B2C'
+        : 'Vendedores';
 
     return (
         <div className="space-y-6">
@@ -108,131 +114,218 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
                             B2C (Consumidor)
                         </button>
                         <button
-                            onClick={() => handleChannelChange('intermediador')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${activeChannel === 'intermediador'
-                                ? 'bg-purple-500/20 text-purple-400 shadow-sm'
+                            onClick={() => handleChannelChange('vendedores')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${activeChannel === 'vendedores'
+                                ? 'bg-orange-500/20 text-orange-400 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-300'
                                 }`}
                         >
-                            Intermediador
+                            Vendedores
                         </button>
                     </div>
                 </div>
-                {/* Removed 'Show All' Toggle as requested */}
             </div>
 
-            <Card className="overflow-hidden transition-opacity duration-300 opacity-100">
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                        <ShoppingCart className="text-primary" size={24} />
-                        Curva ABC - {activeChannel === 'all' ? 'Geral' : activeChannel === 'b2b' ? 'B2B' : activeChannel === 'intermediador' ? 'Intermediador' : 'B2C'}
-                    </CardTitle>
-                    <span className="text-xs bg-muted py-1 px-3 rounded-full border">
-                        {products.length} produtos listados
-                    </span>
-                </CardHeader>
+            {/* Products Table (All / B2B / B2C) */}
+            {activeChannel !== 'vendedores' && (
+                <Card className="overflow-hidden transition-opacity duration-300 opacity-100">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                            <ShoppingCart className="text-primary" size={24} />
+                            Curva ABC - {channelLabel}
+                        </CardTitle>
+                        <span className="text-xs bg-muted py-1 px-3 rounded-full border">
+                            {products.length} produtos listados
+                        </span>
+                    </CardHeader>
 
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
-                        <table className="w-full text-sm text-left border-collapse relative">
-                            <thead className="bg-[#050510] text-slate-400 font-semibold text-xs uppercase tracking-wider sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th className="px-6 py-4">Código</th>
-                                    <th className="px-6 py-4">Produto (Normalizado)</th>
-                                    <th className="px-6 py-4 text-right">Qtd</th>
-                                    <th className="px-6 py-4 text-right">Receita</th>
-                                    <th className="px-6 py-4 text-right">% Rec.</th>
-                                    <th className="px-6 py-4 text-right">Acum.</th>
-                                    <th className="px-6 py-4 text-right">Tendência (Mês Ant.)</th>
-                                    <th className="px-6 py-4 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5 text-slate-300">
-                                {products.length === 0 ? (
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
+                            <table className="w-full text-sm text-left border-collapse relative">
+                                <thead className="bg-[#050510] text-slate-400 font-semibold text-xs uppercase tracking-wider sticky top-0 z-10 shadow-sm">
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
-                                            <div className="flex flex-col items-center gap-3">
-                                                <div className="p-3 rounded-full bg-slate-800/50">
-                                                    <ShoppingCart className="text-slate-600" size={24} />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <p className="font-medium">Nenhum produto encontrado</p>
-                                                    <p className="text-xs text-slate-600">
-                                                        Canal: {activeChannel === 'all' ? 'Todos' : activeChannel === 'b2b' ? 'B2B (Empresas)' : activeChannel === 'intermediador' ? 'Intermediador' : 'B2C (Consumidor)'}
-                                                    </p>
-                                                    <p className="text-xs text-slate-600">
-                                                        Tente selecionar outro período ou canal
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </td>
+                                        <th className="px-6 py-4">Codigo</th>
+                                        <th className="px-6 py-4">Produto (Normalizado)</th>
+                                        <th className="px-6 py-4 text-right">Qtd</th>
+                                        <th className="px-6 py-4 text-right">Receita</th>
+                                        <th className="px-6 py-4 text-right">% Rec.</th>
+                                        <th className="px-6 py-4 text-right">Acum.</th>
+                                        <th className="px-6 py-4 text-right">Tendencia (Mes Ant.)</th>
+                                        <th className="px-6 py-4 text-right">Acoes</th>
                                     </tr>
-                                ) : (
-                                    products.map((product, i) => {
-                                        const isClassA = product.percentage <= 80;
-                                        const isClassB = product.percentage > 80 && product.percentage <= 95;
-                                        const rowClass = isClassA
-                                            ? 'hover:bg-emerald-500/5 hover:shadow-[inset_2px_0_0_0_rgba(16,185,129,0.5)]'
-                                            : isClassB
-                                                ? 'hover:bg-amber-500/5 hover:shadow-[inset_2px_0_0_0_rgba(245,158,11,0.5)]'
-                                                : 'hover:bg-white/5';
+                                </thead>
+                                <tbody className="divide-y divide-white/5 text-slate-300">
+                                    {products.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="p-3 rounded-full bg-slate-800/50">
+                                                        <ShoppingCart className="text-slate-600" size={24} />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="font-medium">Nenhum produto encontrado</p>
+                                                        <p className="text-xs text-slate-600">
+                                                            Canal: {channelLabel}
+                                                        </p>
+                                                        <p className="text-xs text-slate-600">
+                                                            Tente selecionar outro periodo ou canal
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        products.map((product, i) => {
+                                            const isClassA = product.percentage <= 80;
+                                            const isClassB = product.percentage > 80 && product.percentage <= 95;
+                                            const rowClass = isClassA
+                                                ? 'hover:bg-emerald-500/5 hover:shadow-[inset_2px_0_0_0_rgba(16,185,129,0.5)]'
+                                                : isClassB
+                                                    ? 'hover:bg-amber-500/5 hover:shadow-[inset_2px_0_0_0_rgba(245,158,11,0.5)]'
+                                                    : 'hover:bg-white/5';
 
-                                        return (
-                                            <tr key={i} className={`transition-all duration-200 group ${rowClass}`}>
-                                                <td className="px-6 py-3 font-mono text-xs text-slate-500 border-r border-transparent group-hover:border-white/5">
-                                                    {product.code}
+                                            return (
+                                                <tr key={i} className={`transition-all duration-200 group ${rowClass}`}>
+                                                    <td className="px-6 py-3 font-mono text-xs text-slate-500 border-r border-transparent group-hover:border-white/5">
+                                                        {product.code}
+                                                    </td>
+                                                    <td className="px-6 py-3 font-medium text-white max-w-[300px] truncate" title={product.name}>
+                                                        {product.name}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-mono text-slate-300">
+                                                        {product.quantity}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-mono text-white font-bold">
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.revenue)}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-mono">
+                                                        <div className="flex justify-end">
+                                                            <div className={`px-2 py-0.5 rounded text-[10px] w-14 text-center ${isClassA ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                                                                {product.revenuePercentage.toFixed(1)}%
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-mono text-xs">
+                                                        <span className={`${isClassA ? 'text-emerald-500 font-bold' : isClassB ? 'text-amber-500' : 'text-slate-600'}`}>
+                                                            {product.percentage.toFixed(1)}%
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-mono text-xs">
+                                                        <div className={`flex items-center justify-end gap-1 ${product.trend.direction === 'up' ? 'text-emerald-400' :
+                                                            product.trend.direction === 'down' ? 'text-rose-400' : 'text-slate-500'
+                                                            }`}>
+                                                            {product.trend.direction === 'up' && <TrendingUp size={14} />}
+                                                            {product.trend.direction === 'down' && <TrendingDown size={14} />}
+                                                            {product.trend.direction === 'neutral' && <Minus size={14} />}
+                                                            <span>{product.trend.value.toFixed(1)}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-500/20 hover:text-indigo-400"
+                                                            onClick={() => openAnalysis(product)}
+                                                            title="Ver Analise Completa"
+                                                        >
+                                                            <TrendingUp size={14} />
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Vendedores Table */}
+            {activeChannel === 'vendedores' && (
+                <Card className="overflow-hidden transition-opacity duration-300 opacity-100">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                            <Users className="text-orange-400" size={24} />
+                            Vendedores
+                        </CardTitle>
+                        <span className="text-xs bg-muted py-1 px-3 rounded-full border">
+                            {vendedores.length} vendedores
+                        </span>
+                    </CardHeader>
+
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
+                            <table className="w-full text-sm text-left border-collapse relative">
+                                <thead className="bg-[#050510] text-slate-400 font-semibold text-xs uppercase tracking-wider sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="px-6 py-4">#</th>
+                                        <th className="px-6 py-4">Vendedor</th>
+                                        <th className="px-6 py-4 text-right">Receita</th>
+                                        <th className="px-6 py-4 text-right">% Receita</th>
+                                        <th className="px-6 py-4 text-right">Qtd Produtos</th>
+                                        <th className="px-6 py-4 text-right">Tendencia (Mes Ant.)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5 text-slate-300">
+                                    {vendedores.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="p-3 rounded-full bg-slate-800/50">
+                                                        <Users className="text-slate-600" size={24} />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="font-medium">Nenhum vendedor encontrado</p>
+                                                        <p className="text-xs text-slate-600">
+                                                            Nenhum pedido com vendedor atribuido no periodo
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        vendedores.map((seller, i) => (
+                                            <tr key={i} className="transition-all duration-200 group hover:bg-orange-500/5 hover:shadow-[inset_2px_0_0_0_rgba(249,115,22,0.5)]">
+                                                <td className="px-6 py-3 font-mono text-xs text-slate-500">
+                                                    {i + 1}
                                                 </td>
-                                                <td className="px-6 py-3 font-medium text-white max-w-[300px] truncate" title={product.name}>
-                                                    {product.name}
-                                                </td>
-                                                <td className="px-6 py-3 text-right font-mono text-slate-300">
-                                                    {product.quantity}
+                                                <td className="px-6 py-3 font-medium text-white max-w-[300px] truncate" title={seller.sellerName}>
+                                                    {seller.sellerName}
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-mono text-white font-bold">
-                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.revenue)}
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(seller.revenue)}
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-mono">
                                                     <div className="flex justify-end">
-                                                        <div className={`px-2 py-0.5 rounded text-[10px] w-14 text-center ${isClassA ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
-                                                            {product.revenuePercentage.toFixed(1)}%
+                                                        <div className="px-2 py-0.5 rounded text-[10px] w-14 text-center bg-orange-500/10 text-orange-400">
+                                                            {seller.revenuePercentage.toFixed(1)}%
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-3 text-right font-mono text-xs">
-                                                    <span className={`${isClassA ? 'text-emerald-500 font-bold' : isClassB ? 'text-amber-500' : 'text-slate-600'}`}>
-                                                        {product.percentage.toFixed(1)}%
-                                                    </span>
+                                                <td className="px-6 py-3 text-right font-mono text-slate-300">
+                                                    {Math.round(seller.quantity)}
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-mono text-xs">
-                                                    <div className={`flex items-center justify-end gap-1 ${product.trend.direction === 'up' ? 'text-emerald-400' :
-                                                        product.trend.direction === 'down' ? 'text-rose-400' : 'text-slate-500'
+                                                    <div className={`flex items-center justify-end gap-1 ${seller.trend.direction === 'up' ? 'text-emerald-400' :
+                                                        seller.trend.direction === 'down' ? 'text-rose-400' : 'text-slate-500'
                                                         }`}>
-                                                        {product.trend.direction === 'up' && <TrendingUp size={14} />}
-                                                        {product.trend.direction === 'down' && <TrendingDown size={14} />}
-                                                        {product.trend.direction === 'neutral' && <Minus size={14} />}
-                                                        <span>{product.trend.value.toFixed(1)}%</span>
+                                                        {seller.trend.direction === 'up' && <TrendingUp size={14} />}
+                                                        {seller.trend.direction === 'down' && <TrendingDown size={14} />}
+                                                        {seller.trend.direction === 'neutral' && <Minus size={14} />}
+                                                        <span>{seller.trend.value.toFixed(1)}%</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-3 text-right">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-500/20 hover:text-indigo-400"
-                                                        onClick={() => openAnalysis(product)}
-                                                        title="Ver Análise Completa"
-                                                    >
-                                                        <TrendingUp size={14} />
-                                                    </Button>
-                                                </td>
                                             </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <ProductAnalysisSheet
                 open={sheetOpen}

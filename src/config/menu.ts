@@ -10,7 +10,8 @@ import {
     Target,
     Share2,
     Activity,
-    ShieldAlert
+    ShieldAlert,
+    PackageSearch
 } from "lucide-react";
 
 export type ModuleKey =
@@ -21,6 +22,7 @@ export type ModuleKey =
     | 'funil_loja'
     | 'finance'
     | 'curva_abc'
+    | 'estoque'
     | 'rfm'
     | 'ga4_audience'
     | 'ga4_source'
@@ -76,6 +78,13 @@ export const MENU_CONFIG: MenuItem[] = [
         label: 'Curva ABC (Tiny)',
         path: '/products',
         icon: BarChart,
+        moduleNeeded: 'tiny_erp'
+    },
+    {
+        key: 'estoque',
+        label: 'Estoque e Demanda',
+        path: '/estoque',
+        icon: PackageSearch,
         moduleNeeded: 'tiny_erp'
     },
     {

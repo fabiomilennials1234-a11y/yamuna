@@ -70,12 +70,36 @@ async function getStockBySearch(query: string): Promise<StockInfo | null> {
 }
 
 /**
- * Batch fetch stock for multiple IDs (Tiny doesn't support batch well, so use sparingly)
- * Returns Map<SKU, Quantity>
+ * Batch fetch stock for multiple SKUs with rate limiting.
+ * Tiny doesn't support batch, so we fetch sequentially in chunks.
+ * Returns Map<SKU, StockInfo>
  */
-export async function getStockBatch(skus: string[]): Promise<Map<string, number>> {
-    // Basic implementation - Mocking or sequential
-    // For specific requirement "Previsão de estoque" we might need this.
-    // For now, we only fetch on demand in the modal.
-    return new Map();
+export async function getStockBatch(skus: string[]): Promise<Map<string, StockInfo>> {
+    const results = new Map<string, StockInfo>();
+    if (!TINY_TOKEN || skus.length === 0) return results;
+
+    const chunkSize = 3;
+    const delayMs = 2000;
+
+    for (let i = 0; i < skus.length; i += chunkSize) {
+        const chunk = skus.slice(i, i + chunkSize);
+
+        const stockResults = await Promise.all(
+            chunk.map(async (sku) => {
+                const info = await getProductStock(sku);
+                return { sku, info };
+            })
+        );
+
+        stockResults.forEach(r => {
+            if (r.info) results.set(r.sku, r.info);
+        });
+
+        if (i + chunkSize < skus.length) {
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+    }
+
+    console.log(`[StockService] Batch: fetched ${results.size}/${skus.length} stock levels`);
+    return results;
 }

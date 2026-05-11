@@ -134,6 +134,7 @@ export async function fetchSimpleProductList(limit = 20) {
  * NEW: Fetch ALL channels at once for instant switching
  */
 import { getOmnichannelProducts } from "@/lib/services/tiny-products-omni";
+import type { SellerSales } from "@/lib/services/tiny-products-omni";
 
 export async function fetchOmniProductsData(
     startDate = "2025-01-01",
@@ -160,18 +161,18 @@ export async function fetchOmniProductsData(
     const prevEnd = format(subDays(new Date(start), 1), "yyyy-MM-dd");
     const prevStart = format(subDays(new Date(start), daysDiff + 1), "yyyy-MM-dd");
 
-    const _omniCacheKey = `omni:products:v2:${start}:${end}:${limit}`;
+    const _omniCacheKey = `omni:products:v3:${start}:${end}:${limit}`;
     return withCache(_omniCacheKey, async () => {
     console.log(`[OmniProducts] 🔄 Fetching OMNI for Current: ${start}-${end} | Previous: ${prevStart}-${prevEnd}`);
 
-    // 2. Fetch both periods in parallel (2 scans instead of 6!)
+    // 2. Fetch both periods in parallel
     const [current, previous] = await Promise.all([
         getOmnichannelProducts(start, end, limit),
         getOmnichannelProducts(prevStart, prevEnd, limit)
     ]);
 
-    // 3. Helper to Process (ABC + Trend)
-    const process = (currList: any[], prevList: any[]) => {
+    // 3. Helper to Process Products (ABC + Trend)
+    const processProducts = (currList: any[], prevList: any[]) => {
         const prevMap = new Map(prevList.map(p => [p.productName, p.revenue]));
         const totalRevenue = currList.reduce((acc, p) => acc + (p.revenue || 0), 0);
         let accumulated = 0;
@@ -207,11 +208,38 @@ export async function fetchOmniProductsData(
         });
     };
 
+    // 4. Process Vendedores (Sellers) with trend comparison
+    const processVendedores = (currSellers: SellerSales[], prevSellers: SellerSales[]) => {
+        const prevMap = new Map(prevSellers.map(s => [s.sellerName, s]));
+        const totalRevenue = currSellers.reduce((acc, s) => acc + s.revenue, 0);
+
+        return currSellers.map(s => {
+            const prev = prevMap.get(s.sellerName);
+            const prevRev = prev?.revenue || 0;
+
+            let trendValue = 0;
+            let trendDirection: 'up' | 'down' | 'neutral' = 'neutral';
+            if (prevRev > 0) trendValue = ((s.revenue - prevRev) / prevRev) * 100;
+            else if (s.revenue > 0) trendValue = 100;
+
+            if (trendValue > 0.5) trendDirection = 'up';
+            else if (trendValue < -0.5) trendDirection = 'down';
+
+            return {
+                sellerName: s.sellerName,
+                revenue: s.revenue,
+                quantity: s.quantity,
+                revenuePercentage: totalRevenue > 0 ? (s.revenue / totalRevenue) * 100 : 0,
+                trend: { value: Math.abs(trendValue), direction: trendDirection }
+            };
+        });
+    };
+
     return {
-        all: process(current.all, previous.all),
-        b2b: process(current.b2b, previous.b2b),
-        b2c: process(current.b2c, previous.b2c),
-        intermediador: process(current.intermediador, previous.intermediador),
+        all: processProducts(current.all, previous.all),
+        b2b: processProducts(current.b2b, previous.b2b),
+        b2c: processProducts(current.b2c, previous.b2c),
+        vendedores: processVendedores(current.vendedores, previous.vendedores),
     };
     }, CACHE_TTL.HOUR); // 1 hora — sincronizado com o CacheWarmer
 }
