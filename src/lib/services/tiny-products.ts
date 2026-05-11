@@ -3,11 +3,7 @@ import { format, startOfISOWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getTinyOrders } from "./tiny";
 import { normalizeProduct } from "./product-utils";
-
-const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID;
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
+import { getGA4Auth, GA4_PROPERTY_ID } from "./ga4-auth";
 
 export interface ProductSales {
     productId: string;
@@ -26,13 +22,12 @@ export async function getTopProductsByPeriod(
     const shouldUseGA4 = channel === 'all'; // GA4 cannot segment by B2B/B2C (no customer data)
 
     // 1. Try GA4 First (Only if channel is 'all')
-    if (shouldUseGA4 && CLIENT_ID && CLIENT_SECRET && REFRESH_TOKEN && GA4_PROPERTY_ID) {
+    const ga4Auth = getGA4Auth();
+    if (shouldUseGA4 && ga4Auth && GA4_PROPERTY_ID) {
         try {
             console.log(`[Products] 🔄 Fetching top products from GA4 (Channel: All)...`);
 
-            const auth = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
-            auth.setCredentials({ refresh_token: REFRESH_TOKEN });
-            const analyticsData = google.analyticsdata({ version: "v1beta", auth });
+            const analyticsData = google.analyticsdata({ version: "v1beta", auth: ga4Auth });
 
             // Fetch roughly 3x the limit to allow for normalization collapsing rows
             const fetchLimit = limit * 3;

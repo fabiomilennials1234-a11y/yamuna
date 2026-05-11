@@ -6,19 +6,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { google } from "googleapis";
+import { getGA4Auth, GA4_PROPERTY_ID } from "./ga4-auth";
 
-const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID;
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
-
-// Helper to create authenticated client
 function getAnalyticsClient() {
-    if (!GA4_PROPERTY_ID || !CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
-        return null;
-    }
-    const auth = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
-    auth.setCredentials({ refresh_token: REFRESH_TOKEN });
+    const auth = getGA4Auth();
+    if (!auth || !GA4_PROPERTY_ID) return null;
     return google.analyticsdata({ version: "v1beta", auth });
 }
 

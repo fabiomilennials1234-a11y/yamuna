@@ -1,12 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { NeonButton } from "@/components/ui/NeonButton";
 import { ArrowRight, BarChart2, Lock, Zap, Shield } from "lucide-react";
 
 export default function LandingPage() {
+    const router = useRouter();
+
     return (
         <div className="min-h-screen bg-[#050510] relative overflow-x-hidden selection:bg-purple-500/30 selection:text-yellow-400">
             {/* Background Effects */}
@@ -30,16 +32,12 @@ export default function LandingPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
-                    <Link href="/login">
-                        <NeonButton variant="ghost" size="sm">
-                            Entrar
-                        </NeonButton>
-                    </Link>
-                    <Link href="/register">
-                        <NeonButton variant="gold" size="sm" className="hidden sm:flex">
-                            Começar Agora
-                        </NeonButton>
-                    </Link>
+                    <NeonButton variant="ghost" size="sm" onClick={() => router.push('/login')}>
+                        Entrar
+                    </NeonButton>
+                    <NeonButton variant="gold" size="sm" className="hidden sm:flex" onClick={() => router.push('/register')}>
+                        Começar Agora
+                    </NeonButton>
                 </div>
             </nav>
 
@@ -68,17 +66,13 @@ export default function LandingPage() {
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                        <Link href="/register">
-                            <NeonButton variant="gold" className="w-full sm:w-auto min-w-[200px] group">
-                                Criar Conta Grátis
-                                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                            </NeonButton>
-                        </Link>
-                        <Link href="/login">
-                            <NeonButton variant="purple" className="w-full sm:w-auto min-w-[200px]">
-                                Acessar Dashboard
-                            </NeonButton>
-                        </Link>
+                        <NeonButton variant="gold" className="w-full sm:w-auto min-w-[200px] group" onClick={() => router.push('/register')}>
+                            Criar Conta Grátis
+                            <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </NeonButton>
+                        <NeonButton variant="purple" className="w-full sm:w-auto min-w-[200px]" onClick={() => router.push('/login')}>
+                            Acessar Dashboard
+                        </NeonButton>
                     </div>
                 </motion.div>
 

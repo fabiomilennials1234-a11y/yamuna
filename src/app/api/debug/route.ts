@@ -97,7 +97,7 @@ export async function GET(request: Request) {
                     orders: wakeOrders?.length || 0,
                 },
                 ga4: {
-                    configured: !!process.env.GA4_PROPERTY_ID && !!process.env.GOOGLE_REFRESH_TOKEN,
+                    configured: !!process.env.GA4_PROPERTY_ID && !!process.env.GOOGLE_SA_CLIENT_EMAIL,
                     sessions: googleData?.sessions || 0,
                     transactions: googleData?.transactions || 0,
                     newUsers: googleData?.newUsers || 0,

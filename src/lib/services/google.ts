@@ -1,17 +1,9 @@
 import { google } from "googleapis";
-
-const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID;
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
+import { getGA4Auth, GA4_PROPERTY_ID } from "./ga4-auth";
 
 export async function getGoogleAnalyticsData(startDate: string, endDate: string) {
-    if (!GA4_PROPERTY_ID || !CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
-        return null;
-    }
-
-    const auth = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
-    auth.setCredentials({ refresh_token: REFRESH_TOKEN });
+    const auth = getGA4Auth();
+    if (!auth || !GA4_PROPERTY_ID) return null;
 
     const analyticsData = google.analyticsdata({ version: "v1beta", auth });
 

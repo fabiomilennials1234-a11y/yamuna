@@ -28,9 +28,8 @@ export async function runSystemDiagnostics(): Promise<DiagnosticsResult[]> {
     // 0. Check Environment Variables
     const requiredVars = [
         "GA4_PROPERTY_ID",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "GOOGLE_REFRESH_TOKEN",
+        "GOOGLE_SA_CLIENT_EMAIL",
+        "GOOGLE_SA_PRIVATE_KEY",
         "TINY_API_TOKEN"
     ];
 

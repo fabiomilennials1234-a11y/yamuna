@@ -2,11 +2,7 @@
 import { google } from "googleapis";
 import { format, subMonths, startOfMonth, endOfMonth, addMonths, startOfISOWeek, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID;
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
+import { getGA4Auth, GA4_PROPERTY_ID } from "./ga4-auth";
 
 
 export interface SalesDataPoint {
@@ -28,14 +24,13 @@ export async function getProductSalesHistory(
     granularity: 'month' | 'week' = 'month',
     customStartDate?: string
 ): Promise<MonthlySales[]> { // Returning MonthlySales for compat, but filled as SalesDataPoint
-    if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN || !GA4_PROPERTY_ID) {
+    const auth = getGA4Auth();
+    if (!auth || !GA4_PROPERTY_ID) {
         console.warn("[SalesHistory] GA4 credentials missing. Returning empty history.");
         return [];
     }
 
     try {
-        const auth = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
-        auth.setCredentials({ refresh_token: REFRESH_TOKEN });
         const analyticsData = google.analyticsdata({ version: "v1beta", auth });
 
         // Date Range
