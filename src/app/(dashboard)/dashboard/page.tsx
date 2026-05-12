@@ -10,6 +10,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { SalesEvolutionChart } from "@/components/dashboard/sales-evolution-chart";
 import { SalesForecastSection } from "@/components/dashboard/sales-forecast-section";
 import { EmailSmsAnalysis } from "@/components/dashboard/email-sms-analysis";
+import { StockAlertBanner, StockAlertBannerSkeleton } from "@/components/dashboard/stock-alert-banner";
 
 export const revalidate = 300;
 export const maxDuration = 300;
@@ -80,6 +81,11 @@ export default async function DashboardPage(props: Props) {
             </div>
 
             <div className="flex flex-1 flex-col gap-6">
+                {/* Stock Alerts */}
+                <Suspense fallback={<StockAlertBannerSkeleton />}>
+                    <StockAlertBanner startDate={startDate} endDate={endDate} />
+                </Suspense>
+
                 {/* Main KPIs (Suspended) */}
                 <Suspense fallback={<KPISectionSkeleton />}>
                     <DashboardKPIs
